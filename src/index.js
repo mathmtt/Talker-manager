@@ -1,6 +1,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const routesTalker = require('./routes/router');
+const validateData = require('./middlewares/validateData');
 
 const app = express();
 
@@ -13,8 +14,7 @@ const HTTP_OK_STATUS = 200;
 const PORT = process.env.PORT || '3001';
 app.use('/talker', routesTalker);
 
-app.post('/login', (req, res) => {
-  const { email, password } = req.body;
+app.post('/login', validateData, async (req, res) => {
   const token = generateToken();
   return res.status(200).json({ token });
 });
