@@ -11,6 +11,7 @@ const HTTP_OK_STATUS = 200;
 const BAD_REQUEST_STATUS = 400;
 const UNAUTHORIZED_STATUS = 401;
 const NOT_FOUND_STATUS = 404;
+const SERVER_ERROR_STATUS = 500;
 const PORT = process.env.PORT || '3001';
 
 function validatePassword(req, res, next) {
@@ -108,6 +109,18 @@ function talkNumberValidate(req, res, next) {
 }
 
 // (nao remover)
+const getTalkersData = async () => {
+  const talkersData = await fs.readFile(path.join(__dirname, './talker.json'), 'utf-8');
+  return JSON.parse(talkersData);
+};
+
+const findTalkerIndex = (talkers, id) => talkers.findIndex((talker) => talker.id === Number(id));
+
+const updateTalkerData = async (talkers) => {
+  await fs.writeFile(path.join(__dirname, './talker.json'), JSON.stringify(talkers));
+};
+
+const sendError = (res, statusCode, message) => res.status(statusCode).json({ message });
 
 app.get('/', (req, res) => {
   res.status(HTTP_OK_STATUS).send();
@@ -125,9 +138,9 @@ app.get('/talker', async (req, res) => {
 
 app.get('/talker/:id', async (req, res) => {
   try {
-    const id = Number(req.params.id);
+    const { id } = (req.params.id);
     const talkers = await fs.readFile(path.join(__dirname, './talker.json'), 'utf-8');
-    const talker = JSON.parse(talkers).find((talk) => talk.id === id);
+    const talker = JSON.parse(talkers).find((talk) => talk.id === Number(id));
     if (!talker) {
       return res.status(NOT_FOUND_STATUS).json({ message: 'Pessoa palestrante não encontrada' });
     }
@@ -143,18 +156,16 @@ app.post('/login', validateLogin, (req, res) => {
 });
 
 app.post('/talker',
-validateAge,
-validateName,
-validatePassword,
-TalkRegexValidate,
-TalkWatchedValidate,
+  validateAge,
+  validateName,
+  validatePassword,
+  TalkRegexValidate,
+  TalkWatchedValidate,
   talkRateValidate,
   talkNumberValidate, async (req, res) => {
     try {
       const { name, age, talk } = req.body;
-      const talkers = await fs.readFile(path.join(__dirname, './talker.json'), 'utf-8');
-      const parsedTalkers = JSON.parse(talkers);
-
+      const parsedTalkers = await getTalkersData();
       const newTalker = {
         id: parsedTalkers.length + 1,
         name,
@@ -170,6 +181,32 @@ TalkWatchedValidate,
     }
   });
 
+app.put('/talker/:id', 
+  validatePassword, 
+  validateName, 
+  validateAge, 
+  TalkWatchedValidate, 
+  TalkRegexValidate, 
+  talkRateValidate, 
+  talkNumberValidate, async (req, res) => {
+    const { name, age, talk } = req.body;
+    const { id } = req.params;
+    try {
+      const talkers = await getTalkersData();
+      const indexTalker = findTalkerIndex(talkers, id);
+      if (indexTalker === -1) {
+        return sendError(res, NOT_FOUND_STATUS, 'Pessoa palestrante não encontrada');
+      }
+
+      talkers[indexTalker] = { id: Number(id), name, age, talk };
+      await updateTalkerData(talkers);
+
+      res.status(HTTP_OK_STATUS).json(talkers[indexTalker]);
+    } catch (error) {
+      console.error(`Erro ao atualizar o arquivo: ${error.message}`);
+      sendError(res, SERVER_ERROR_STATUS, 'Erro interno do servidor');
+    }
+  });
 app.listen(PORT, () => {
   console.log('Online');
 });
