@@ -118,6 +118,22 @@ app.get('/talker', async (req, res) => {
   }
 });
 
+app.get('/talker/search', validatePassword, async (req, res) => {
+  try {
+    const searchTerm = req.query.q;
+    const talkers = await getTalkersData();
+    if (!searchTerm || searchTerm.trim() === '') {
+      return res.status(HTTP_OK_STATUS).json(talkers);
+    }
+    const filteredTalkers = talkers.filter((talker) => 
+      talker.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    res.status(HTTP_OK_STATUS).json(filteredTalkers);
+  } catch (error) {
+    console.error(`Erro ao obter dados do talker: ${error.message}`);
+    sendError(res, SERVER_ERROR_STATUS, 'Erro interno do servidor');
+  }
+});
+
 app.get('/talker/:id', async (req, res) => {
   try {
     const { id } = req.params;
