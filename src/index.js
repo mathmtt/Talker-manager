@@ -8,6 +8,7 @@ const path = require('path');
 
 app.use(express.json());
 const HTTP_OK_STATUS = 200;
+const NO_CONTENT_STATUS = 204;
 const BAD_REQUEST_STATUS = 400;
 const UNAUTHORIZED_STATUS = 401;
 const NOT_FOUND_STATUS = 404;
@@ -109,15 +110,16 @@ function talkNumberValidate(req, res, next) {
 }
 
 // (nao remover)
+const pathData = path.join(__dirname, './talker.json');
 const getTalkersData = async () => {
-  const talkersData = await fs.readFile(path.join(__dirname, './talker.json'), 'utf-8');
+  const talkersData = await fs.readFile(pathData, 'utf-8');
   return JSON.parse(talkersData);
 };
 
 const findTalkerIndex = (talkers, id) => talkers.findIndex((talker) => talker.id === Number(id));
 
 const updateTalkerData = async (talkers) => {
-  await fs.writeFile(path.join(__dirname, './talker.json'), JSON.stringify(talkers));
+  await fs.writeFile(pathData, JSON.stringify(talkers));
 };
 
 const sendError = (res, statusCode, message) => res.status(statusCode).json({ message });
@@ -128,7 +130,7 @@ app.get('/', (req, res) => {
 
 app.get('/talker', async (req, res) => {
   try {
-    const talkers = await fs.readFile(path.join(__dirname, './talker.json'), 'utf-8');
+    const talkers = await fs.readFile(pathData, 'utf-8');
     res.status(HTTP_OK_STATUS).json(JSON.parse(talkers)); 
   } catch (error) {
     console.error(`Erro ao ler o arquivo: ${error.message}`);
@@ -139,10 +141,10 @@ app.get('/talker', async (req, res) => {
 app.get('/talker/:id', async (req, res) => {
   try {
     const { id } = (req.params.id);
-    const talkers = await fs.readFile(path.join(__dirname, './talker.json'), 'utf-8');
+    const talkers = await fs.readFile(pathData, 'utf-8');
     const talker = JSON.parse(talkers).find((talk) => talk.id === Number(id));
     if (!talker) {
-      return res.status(NOT_FOUND_STATUS).json({ message: 'Pessoa palestrante não encontrada' });
+      return sendError(res, NOT_FOUND_STATUS, 'Pessoa palestrante não encontrada');
     }
     res.status(HTTP_OK_STATUS).json(talker);
   } catch (error) {
@@ -173,13 +175,30 @@ app.post('/talker',
         talk,
       };
       parsedTalkers.push(newTalker);
-      await fs.writeFile(path.join(__dirname, './talker.json'), JSON.stringify(parsedTalkers));
+      await fs.writeFile(pathData, JSON.stringify(parsedTalkers));
       res.status(201).json(newTalker);
     } catch (error) {
       console.error(`Erro ao salvar o arquivo: ${error.message}`);
-      res.status(500).json({ message: 'Erro interno do servidor' });
+      sendError(res, NOT_FOUND_STATUS, 'Pessoa palestrante não encontrada');
     }
   });
+
+app.delete('/talker/:id', validatePassword, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const talkers = await getTalkersData();
+    const indexTalker = findTalkerIndex(talkers, id);
+    if (indexTalker === -1) {
+      return sendError(res, NOT_FOUND_STATUS, 'Pessoa palestrante não encontrada');
+    }
+    talkers.splice(indexTalker, 1);
+    await updateTalkerData(talkers);
+    res.status(NO_CONTENT_STATUS).end();
+  } catch (error) {
+    console.error(`Erro ao deletar o palestrante: ${error.message}`);
+    sendError(res, SERVER_ERROR_STATUS, 'Erro interno do servidor');
+  }
+});
 
 app.put('/talker/:id', 
   validatePassword, 
