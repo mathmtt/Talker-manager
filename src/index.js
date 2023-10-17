@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const app = express();
 
 const path = require('path');
+const validateData = require('./middlewares/validateData');
 
 app.use(express.json());
 const HTTP_OK_STATUS = 200;
@@ -50,27 +51,6 @@ function validateAge(req, res, next) {
   next();
 }
 
-function validateLogin(req, res, next) {
-  const { email, password } = req.body;
-  if (!email) {
-    return res.status(BAD_REQUEST_STATUS).json({ message: 'O campo "email" é obrigatório' });
-  }
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
-    return res.status(BAD_REQUEST_STATUS)
-      .json({ message: 'O "email" deve ter o formato "email@email.com"' });
-  }
-  if (!password) {
-    return res.status(BAD_REQUEST_STATUS)
-      .json({ message: 'O campo "password" é obrigatório' });
-  }
-  if (password.length < 6) {
-    return res.status(BAD_REQUEST_STATUS)
-      .json({ message: 'O "password" deve ter pelo menos 6 caracteres' });
-  }
-  next();
-}
-
 function TalkWatchedValidate(req, res, next) {
   const { talk } = req.body;
   if (!talk) {
@@ -110,16 +90,16 @@ function talkNumberValidate(req, res, next) {
 }
 
 // (nao remover)
-const pathData = path.join(__dirname, './talker.json');
+
 const getTalkersData = async () => {
-  const talkersData = await fs.readFile(pathData, 'utf-8');
+  const talkersData = await fs.readFile(path.join(__dirname, './talker.json'), 'utf-8');
   return JSON.parse(talkersData);
 };
 
 const findTalkerIndex = (talkers, id) => talkers.findIndex((talker) => talker.id === Number(id));
 
 const updateTalkerData = async (talkers) => {
-  await fs.writeFile(pathData, JSON.stringify(talkers));
+  await fs.writeFile(path.join(__dirname, './talker.json'), JSON.stringify(talkers));
 };
 
 const sendError = (res, statusCode, message) => res.status(statusCode).json({ message });
@@ -130,7 +110,7 @@ app.get('/', (req, res) => {
 
 app.get('/talker', async (req, res) => {
   try {
-    const talkers = await fs.readFile(pathData, 'utf-8');
+    const talkers = await fs.readFile(path.join(__dirname, './talker.json'), 'utf-8');
     res.status(HTTP_OK_STATUS).json(JSON.parse(talkers)); 
   } catch (error) {
     console.error(`Erro ao ler o arquivo: ${error.message}`);
@@ -140,9 +120,9 @@ app.get('/talker', async (req, res) => {
 
 app.get('/talker/:id', async (req, res) => {
   try {
-    const { id } = (req.params.id);
-    const talkers = await fs.readFile(pathData, 'utf-8');
-    const talker = JSON.parse(talkers).find((talk) => talk.id === Number(id));
+    const { id } = req.params;
+    const talkers = await getTalkersData();
+    const talker = talkers.find((talk) => talk.id === Number(id));
     if (!talker) {
       return sendError(res, NOT_FOUND_STATUS, 'Pessoa palestrante não encontrada');
     }
@@ -152,7 +132,7 @@ app.get('/talker/:id', async (req, res) => {
     res.status(HTTP_OK_STATUS).json([]);
   }
 });
-app.post('/login', validateLogin, (req, res) => {
+app.post('/login', validateData, (req, res) => {
   const token = crypto.randomBytes(8).toString('hex');
   res.status(HTTP_OK_STATUS).json({ token });
 });
@@ -175,7 +155,7 @@ app.post('/talker',
         talk,
       };
       parsedTalkers.push(newTalker);
-      await fs.writeFile(pathData, JSON.stringify(parsedTalkers));
+      await updateTalkerData(parsedTalkers);
       res.status(201).json(newTalker);
     } catch (error) {
       console.error(`Erro ao salvar o arquivo: ${error.message}`);
